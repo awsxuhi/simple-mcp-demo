@@ -1,4 +1,4 @@
-# MCP Intelligent Assistant Demo
+# Simple MCP Demo
 
 This is a demonstration project of an intelligent assistant using OpenAI API and Model Context Protocol (MCP). The assistant can answer various questions and use mathematical tools to solve math calculation problems.
 
