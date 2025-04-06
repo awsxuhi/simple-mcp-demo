@@ -84,4 +84,4 @@ python client.py
 
 ## License
 
-[Add license information here]
+[MIT](LICENSE)
