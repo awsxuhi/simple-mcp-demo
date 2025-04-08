@@ -1,17 +1,17 @@
 # Simple MCP Demo
 
-This is a demonstration project of an intelligent assistant using OpenAI API and Model Context Protocol (MCP). The assistant can answer various questions and use mathematical tools to solve math calculation problems.
+This is a demonstration project of an intelligent assistant using OpenRouter API (with Google's Gemini model) and Model Context Protocol (MCP). The assistant can answer various questions and use mathematical tools to solve math calculation problems.
 
 ## Features
 
-- Uses OpenAI's GPT-4o-mini model
+- Uses Google's Gemini-2.0-flash-exp:free model via OpenRouter
 - Automatically identifies math problems and uses MCP tools for calculations
 - Directly answers non-mathematical questions
 - Beautiful command-line interface display
 
 ## Project Structure
 
-- `client.py`: Main program that handles user input and calls OpenAI API and MCP tools
+- `client.py`: Main program that handles user input and calls OpenRouter API (with Google's Gemini model) and MCP tools
 - `math_server.py`: MCP math server providing addition and multiplication tools
 - `requirements.txt`: List of project dependencies
 - `.env.example`: Example environment variables file
@@ -50,10 +50,10 @@ pip install -r requirements.txt
 # Copy the example environment variables file
 cp .env.example .env
 
-# Edit the .env file and enter your OpenAI API key
+# Edit the .env file and enter your OpenRouter API key
 # Open the .env file with your favorite editor
 # For example:
-# OPENAI_API_KEY=sk-your-api-key
+# OPENROUTER_API_KEY=sk-or-your-api-key
 ```
 
 ## Usage
@@ -78,7 +78,7 @@ python client.py
 
 ## Notes
 
-- Make sure you have a valid OpenAI API key
+- Make sure you have a valid OpenRouter API key
 - Math tools currently only support addition (add) and multiplication (multiply) operations
 - The program will automatically determine the question type, but sometimes more explicit phrasing may be needed
 

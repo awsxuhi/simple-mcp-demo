@@ -14,13 +14,26 @@ from rich import box
 from dotenv import load_dotenv
 
 # Load environment variables
-load_dotenv('.env')
+# load_dotenv('.env')
+load_dotenv()
 
 # Create OpenAI model instance using gpt-4o-mini
+# model = ChatOpenAI(
+#     model="gpt-4o-mini",
+#     api_key=os.getenv("OPENAI_API_KEY")
+# )
+model_name = "google/gemini-2.0-flash-exp:free"
 model = ChatOpenAI(
-    model="gpt-4o-mini",
-    api_key=os.getenv("OPENAI_API_KEY")
+    model=model_name,  # OpenRouter 上的模型名
+    api_key=os.getenv("OPENROUTER_API_KEY"),
+    base_url="https://openrouter.ai/api/v1"   # 自定义 Base URL
 )
+
+# 打印当前使用的模型信息
+print("\n" + "="*50)
+print(f"Current Model: model_name={model_name}")
+print("="*50 + "\n")
+
 
 # System instructions
 SYSTEM_PROMPT = """You are an intelligent assistant that can answer various questions.
@@ -294,6 +307,8 @@ if __name__ == "__main__":
     console = Console()
     console.print("\n")
     console.print(Panel.fit("MCP Intelligent Assistant Demo", style="bold magenta"))
+    # 使用Rich库打印模型信息
+    console.print(Panel.fit(f"使用模型: [bold cyan]{model_name}[/bold cyan]", style="bold green"))
     console.print("\n")
     
     while True:
