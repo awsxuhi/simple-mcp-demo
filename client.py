@@ -29,23 +29,22 @@ model = ChatOpenAI(
     base_url="https://openrouter.ai/api/v1"   # 自定义 Base URL
 )
 
-# 打印当前使用的模型信息
-print("\n" + "="*50)
-print(f"Current Model: model_name={model_name}")
-print("="*50 + "\n")
-
-
 # System instructions
 SYSTEM_PROMPT = """You are an intelligent assistant that can answer various questions.
 
-For mathematical calculation problems (such as addition, multiplication, etc.), you should use the available math tools to help with calculations.
+When answering a question, if there are no suitable tools available, then rely on your own knowledge to complete the answer.
+
+Always provide useful and accurate answers, do not refuse to answer questions.
+"""
+
+"""
+For math-related calculation problems, you need to first break down the math process into individual calculation steps, and then check for each step whether there is a suitable tool available to help you complete the corresponding calculation. For specific steps, if there is a tool available, prioritize using it to compute the intermediate result. If no tool is available, rely on your own knowledge to complete the step. For example, if a step in calculating the final result requires performing subtraction and you find no tool to assist with it, you still need to compute the subtraction result without the tool. Finally, after completing all the calculation steps, you need to provide me with the final result of the math problem, not just a result from one of the intermediate steps.
+
 Available math tools include:
 - add: for addition calculations
 - multiply: for multiplication calculations
 
 For all other types of questions (such as general knowledge, geography, etc.), you should answer directly without trying to use tools.
-
-Always provide useful and accurate answers, do not refuse to answer questions.
 """
 
 # Create server parameters
@@ -306,7 +305,7 @@ def format_agent_response(response, used_tools):
 if __name__ == "__main__":
     console = Console()
     console.print("\n")
-    console.print(Panel.fit("MCP Intelligent Assistant Demo", style="bold magenta"))
+    console.print(Panel.fit("Simple MCP Demo", style="bold magenta"))
     # 使用Rich库打印模型信息
     console.print(Panel.fit(f"使用模型: [bold cyan]{model_name}[/bold cyan]", style="bold green"))
     console.print("\n")
