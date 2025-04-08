@@ -6,6 +6,7 @@ from langgraph.prebuilt import create_react_agent
 from langchain_openai import ChatOpenAI
 import asyncio
 import os
+import argparse
 from rich.console import Console
 from rich.panel import Panel
 from rich.text import Text
@@ -14,38 +15,122 @@ from rich import box
 from dotenv import load_dotenv
 
 # Load environment variables
-# load_dotenv('.env')
 load_dotenv()
 
-# Create OpenAI model instance using gpt-4o-mini
-# model = ChatOpenAI(
-#     model="gpt-4o-mini",
-#     api_key=os.getenv("OPENAI_API_KEY")
-# )
-model_name = "google/gemini-2.0-flash-exp:free"
-model = ChatOpenAI(
-    model=model_name,  # OpenRouter 上的模型名
-    api_key=os.getenv("OPENROUTER_API_KEY"),
-    base_url="https://openrouter.ai/api/v1"   # 自定义 Base URL
-)
+# Define supported model types
+MODEL_TYPES = {
+    "openai": {
+        "name": "gpt-4o-mini",
+        "description": "OpenAI GPT-4o-mini"
+    },
+    "openrouter": {
+        "name": "google/gemini-2.0-flash-exp:free",
+        "description": "Google Gemini via OpenRouter"
+    },
+    "claude": {
+        "name": "anthropic.claude-3-haiku-20240307-v1:0",
+        "description": "Anthropic Claude 3 Haiku via AWS Bedrock"
+    },
+    "nova": {
+        "name": "amazon.nova-lite-v1:0",
+        "description": "Amazon Bedrock Nova Lite"
+    }
+}
+
+# Parse command line arguments
+def parse_arguments():
+    parser = argparse.ArgumentParser(description="MCP Intelligent Assistant Demo")
+    parser.add_argument(
+        "--model", 
+        type=str, 
+        choices=list(MODEL_TYPES.keys()),
+        default="nova",
+        help="Specify the model type to use (default: nova)",
+        metavar="MODEL_TYPE"
+    )
+    return parser.parse_args()
+
+# Initialize model based on specified model type
+def initialize_model(model_type):
+    if model_type == "openai":
+        model_name = MODEL_TYPES["openai"]["name"]
+        model = ChatOpenAI(
+            model=model_name,
+            api_key=os.getenv("OPENAI_API_KEY")
+        )
+    elif model_type == "openrouter":
+        model_name = MODEL_TYPES["openrouter"]["name"]
+        model = ChatOpenAI(
+            model=model_name,
+            api_key=os.getenv("OPENROUTER_API_KEY"),
+            base_url="https://openrouter.ai/api/v1"
+        )
+    elif model_type in ["claude", "nova"]:
+        from langchain_aws import ChatBedrock
+        import boto3
+        
+        model_name = MODEL_TYPES[model_type]["name"]
+        bedrock_runtime = boto3.client("bedrock-runtime", region_name="us-east-1")
+        model = ChatBedrock(
+            client=bedrock_runtime,
+            model_id=model_name,
+            model_kwargs={
+                "temperature": 0
+            }
+        )
+    else:
+        raise ValueError(f"Unsupported model type: {model_type}")
+    
+    return model, model_name
+
+# Parse command line arguments
+args = parse_arguments()
+
+# Initialize model
+model, model_name = initialize_model(args.model)
+
+
 
 # System instructions
-SYSTEM_PROMPT = """You are an intelligent assistant that can answer various questions.
+SYSTEM_PROMPT_WITHOUT_CHAIN = """You are an intelligent assistant that can answer various questions.
 
-When answering a question, if there are no suitable tools available, then rely on your own knowledge to complete the answer.
+For mathematical calculation problems (such as addition, multiplication, etc.), you should use the available math tools to help with calculations.
+Available math tools include:
+- add: for addition calculations
+- multiply: for multiplication calculations
+- evaluate: for complex mathematical expressions (like '3+4*5') that involve multiple operations
+
+For complex mathematical expressions, always use the 'evaluate' tool instead of trying to chain multiple operations.
+
+For all other types of questions (such as general knowledge, geography, etc.), you should answer directly without trying to use tools.
 
 Always provide useful and accurate answers, do not refuse to answer questions.
 """
 
-"""
-For math-related calculation problems, you need to first break down the math process into individual calculation steps, and then check for each step whether there is a suitable tool available to help you complete the corresponding calculation. For specific steps, if there is a tool available, prioritize using it to compute the intermediate result. If no tool is available, rely on your own knowledge to complete the step. For example, if a step in calculating the final result requires performing subtraction and you find no tool to assist with it, you still need to compute the subtraction result without the tool. Finally, after completing all the calculation steps, you need to provide me with the final result of the math problem, not just a result from one of the intermediate steps.
+SYSTEM_PROMPT_WITH_CHAIN = """You are an intelligent assistant that can answer various questions.
 
+For mathematical calculation problems (such as addition, multiplication, etc.), you should use the available math tools to help with calculations.
 Available math tools include:
 - add: for addition calculations
 - multiply: for multiplication calculations
 
+For complex mathematical expressions (like '3+4*5'), you should break down the calculation following the correct order of operations:
+1. First, calculate any multiplications or divisions (from left to right)
+2. Then, calculate any additions or subtractions (from left to right)
+
+For example, to calculate '3+4*5':
+1. First calculate 4*5=20 using the multiply tool
+2. Then calculate 3+20=23 using the add tool
+
+Always show your work step by step, using the appropriate tools in the correct sequence.
+
 For all other types of questions (such as general knowledge, geography, etc.), you should answer directly without trying to use tools.
+
+Always provide useful and accurate answers, do not refuse to answer questions.
 """
+
+# Use the SYSTEM_PROMPT_WITH_CHAIN to enable chain calling of tools
+SYSTEM_PROMPT = SYSTEM_PROMPT_WITH_CHAIN
 
 # Create server parameters
 server_params = StdioServerParameters(
@@ -174,45 +259,22 @@ def format_agent_response(response, used_tools):
                             break
         
         # If it's a math calculation problem, try to build an answer
-        if tool_results and any(t["name"] in ["add", "multiply"] for t in tool_results):
+        if tool_results and any(t["name"] in ["add", "multiply", "evaluate"] for t in tool_results):
             # Find the final result
             final_result = None
             for tool in reversed(tool_results):  # Search from back to front, take the last result
-                if tool["name"] == "add":
+                if tool["name"] in ["add", "multiply", "evaluate"]:
                     final_result = tool["result"]
                     break
-            
-            if not final_result:
-                for tool in tool_results:
-                    if tool["name"] == "multiply":
-                        final_result = tool["result"]
-                        break
             
             if final_result:
                 final_answer = f"The calculation result is {final_result}."
     
     # If still no answer is found, use default message
     if not final_answer:
-        # For non-math questions, use the model to answer directly
+        # For non-math questions, provide a default message
         if not used_tools:
-            # Extract user question
-            user_question = None
-            for msg in messages:
-                if hasattr(msg, "role") and msg.role == "user" and hasattr(msg, "content"):
-                    user_question = msg.content
-                    break
-                elif isinstance(msg, dict) and msg.get("role") == "user" and "content" in msg:
-                    user_question = msg.get("content")
-                    break
-            
-            if user_question:
-                direct_response = asyncio.run(model.ainvoke([
-                    {"role": "system", "content": SYSTEM_PROMPT},
-                    {"role": "user", "content": user_question}
-                ]))
-                final_answer = direct_response.content
-            else:
-                final_answer = "I cannot understand your question, please ask again."
+            final_answer = "I cannot generate a complete answer based on your question. Please try rephrasing it."
         else:
             final_answer = "I have processed your request, but cannot generate a final answer."
     
@@ -305,9 +367,12 @@ def format_agent_response(response, used_tools):
 if __name__ == "__main__":
     console = Console()
     console.print("\n")
-    console.print(Panel.fit("Simple MCP Demo", style="bold magenta"))
-    # 使用Rich库打印模型信息
-    console.print(Panel.fit(f"使用模型: [bold cyan]{model_name}[/bold cyan]", style="bold green"))
+    console.print(Panel.fit("MCP Intelligent Assistant Demo", style="bold magenta"))
+    # Use Rich library to print model information
+    console.print(Panel.fit(
+        f"Using model: [bold cyan]{model_name}[/bold cyan] ({MODEL_TYPES[args.model]['description']})", 
+        style="bold green"
+    ))
     console.print("\n")
     
     while True:
@@ -335,4 +400,6 @@ if __name__ == "__main__":
             console.print("\n[yellow]Program interrupted, thank you for using![/yellow]\n")
             break
         except Exception as e:
+            import traceback
             console.print(f"[red]An error occurred: {str(e)}[/red]\n")
+            console.print(f"[red]Error details: {traceback.format_exc()}[/red]\n")
